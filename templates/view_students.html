@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}All Students{% endblock %}
+{% block page_title %}All Students{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <p class="text-muted mb-0">{{ students|length }} student(s) registered</p>
+  <a href="{{ url_for('students.add_student') }}" class="btn btn-primary">
+    <i class="bi bi-person-plus-fill me-1"></i>Add Student
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if students %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Photo</th>
+            <th>Name</th>
+            <th>Roll No</th>
+            <th>Department</th>
+            <th>Training Images</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in students %}
+          <tr>
+            <td class="text-muted" style="font-size:.8rem">{{ loop.index }}</td>
+            <td>
+              {% if s.image_path %}
+                <img src="{{ url_for('static', filename=s.image_path) }}"
+                     alt="{{ s.name }}"
+                     style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border)"/>
+              {% else %}
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--blue);
+                            display:flex;align-items:center;justify-content:center;
+                            color:#fff;font-weight:700;font-size:.85rem">
+                  {{ s.name[0].upper() }}
+                </div>
+              {% endif %}
+            </td>
+            <td class="fw-500" style="font-weight:500">{{ s.name }}</td>
+            <td><span class="mono badge bg-light text-dark border">{{ s.roll_no }}</span></td>
+            <td>{{ s.department }}</td>
+            <td>
+              {% if s.image_count > 0 %}
+                <span class="badge badge-present rounded-pill px-3">{{ s.image_count }} imgs</span>
+              {% else %}
+                <span class="badge bg-light text-muted rounded-pill px-3">No images</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('students.student_marks', student_id=s.id) }}"
+                 class="btn btn-sm btn-outline-info me-1" title="Marks">
+                <i class="bi bi-journal-text"></i>
+              </a>
+              <a href="{{ url_for('students.student_attendance', student_id=s.id) }}"
+                 class="btn btn-sm btn-outline-success me-1" title="Attendance">
+                <i class="bi bi-pie-chart"></i>
+              </a>
+              <a href="{{ url_for('upload.upload_dataset') }}?student_id={{ s.id }}"
+                 class="btn btn-sm btn-outline-primary me-1" title="Upload images">
+                <i class="bi bi-cloud-upload"></i>
+              </a>
+              <form method="POST" action="{{ url_for('students.delete_student', student_id=s.id) }}"
+                    class="d-inline"
+                    onsubmit="return confirm('Delete {{ s.name }}? This will also remove all attendance records.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-people fs-1 d-block mb-2"></i>
+      No students registered yet.
+      <a href="{{ url_for('students.add_student') }}">Add your first student →</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

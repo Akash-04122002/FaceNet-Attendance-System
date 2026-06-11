@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block title %}Upload Dataset{% endblock %}
+{% block page_title %}Upload Dataset & Train Model{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- ── Upload form ───────────────────────────────────────────────────────── -->
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      <div class="card-header-custom">
+        <i class="bi bi-cloud-upload-fill me-2"></i>Upload Training Images
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('upload.upload_dataset') }}"
+              enctype="multipart/form-data" novalidate>
+
+          <div class="mb-3">
+            <label class="form-label fw-600" style="font-weight:600">Select Student *</label>
+            <select name="student_id" class="form-select" required id="student-select">
+              <option value="" disabled selected>— Choose student —</option>
+              {% for s in students %}
+              <option value="{{ s.id }}"
+                {% if request.args.get('student_id') == s.id|string %}selected{% endif %}>
+                {{ s.name }} ({{ s.roll_no }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-600" style="font-weight:600">Face Images *</label>
+            <div class="upload-zone" id="img-zone"
+                 ondragover="event.preventDefault();this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handleDrop(event)"
+                 onclick="document.getElementById('img-input').click()">
+              <div class="upload-icon"><i class="bi bi-images"></i></div>
+              <div class="fw-500 mb-1" style="font-weight:500" id="img-label">
+                Drop images here or click to browse
+              </div>
+              <div class="text-muted" style="font-size:.82rem">
+                JPG / PNG &nbsp;·&nbsp; Select multiple &nbsp;·&nbsp; Recommended: 20–50 images
+              </div>
+              <input type="file" name="images" id="img-input" accept=".jpg,.jpeg,.png"
+                     multiple class="d-none" onchange="updateLabel(this)"/>
+            </div>
+          </div>
+
+          <!-- Preview thumbnails -->
+          <div id="thumbs" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-upload me-1"></i>Upload Images
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Train model ───────────────────────────────────────────────────── -->
+    <div class="card border-warning">
+      <div class="card-body p-4">
+        <h6 class="fw-600 mb-1" style="font-weight:600">
+          <i class="bi bi-cpu-fill text-warning me-2"></i>Train Recognition Model
+        </h6>
+        <p class="text-muted mb-3" style="font-size:.875rem">
+          After uploading images for <strong>all</strong> students, click below to run
+          MTCNN face alignment → FaceNet embedding → SVM training.
+          This may take several minutes.
+        </p>
+        <form method="POST" action="{{ url_for('upload.train_model') }}"
+              onsubmit="showTraining()">
+          <button type="submit" class="btn btn-warning fw-600" style="font-weight:600"
+                  id="train-btn">
+            <i class="bi bi-lightning-charge-fill me-1"></i>Train Model
+          </button>
+          <span id="train-spinner" class="ms-3 text-muted d-none" style="font-size:.875rem">
+            <span class="spinner-border spinner-border-sm me-1"></span>Training… please wait
+          </span>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Guide ─────────────────────────────────────────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header-custom">
+        <i class="bi bi-info-circle-fill me-2"></i>Image Guidelines
+      </div>
+      <div class="card-body p-4">
+        <div class="mb-4">
+          <h6 class="fw-600 text-success" style="font-weight:600">
+            <i class="bi bi-check-circle-fill me-1"></i>Do
+          </h6>
+          <ul style="font-size:.875rem;line-height:1.9;padding-left:1.2rem">
+            <li>Clear, front-facing face photos</li>
+            <li>Good lighting (natural or indoor)</li>
+            <li>20–50 images per student</li>
+            <li>Vary angles slightly (left, right, up, down)</li>
+            <li>Different lighting conditions</li>
+            <li>Image size ≥ 200×200 px</li>
+          </ul>
+        </div>
+        <div>
+          <h6 class="fw-600 text-danger" style="font-weight:600">
+            <i class="bi bi-x-circle-fill me-1"></i>Avoid
+          </h6>
+          <ul style="font-size:.875rem;line-height:1.9;padding-left:1.2rem">
+            <li>Blurry or dark images</li>
+            <li>Faces partially covered (mask, sunglasses)</li>
+            <li>Fewer than 10 images per student</li>
+            <li>Images with multiple faces</li>
+          </ul>
+        </div>
+
+        <hr/>
+        <div style="font-size:.8rem;color:var(--muted)">
+          <strong>Pipeline:</strong>
+          <ol style="padding-left:1rem;line-height:1.9;margin-top:.5rem">
+            <li>MTCNN detects &amp; aligns faces → <code>dataset/aligned/</code></li>
+            <li>FaceNet extracts 512-D embeddings</li>
+            <li>SVM classifier trains on embeddings</li>
+            <li>Classifier saved to <code>model/classifier.pkl</code></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updateLabel(input) {
+  const label = document.getElementById('img-label');
+  const thumbs = document.getElementById('thumbs');
+  thumbs.innerHTML = '';
+  if (input.files.length) {
+    label.textContent = `${input.files.length} file(s) selected`;
+    Array.from(input.files).slice(0, 12).forEach(f => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:8px;border:2px solid var(--border)';
+        thumbs.appendChild(img);
+      };
+      reader.readAsDataURL(f);
+    });
+    if (input.files.length > 12) {
+      const more = document.createElement('div');
+      more.textContent = `+${input.files.length - 12} more`;
+      more.className = 'text-muted d-flex align-items-center';
+      more.style.fontSize = '.8rem';
+      thumbs.appendChild(more);
+    }
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('img-zone').classList.remove('drag-over');
+  const input = document.getElementById('img-input');
+  input.files = e.dataTransfer.files;
+  updateLabel(input);
+}
+
+function showTraining() {
+  document.getElementById('train-btn').disabled = true;
+  document.getElementById('train-spinner').classList.remove('d-none');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block title %}Take Attendance{% endblock %}
+{% block page_title %}Take Attendance{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <!-- ── Upload form ────────────────────────────────────────────────────── -->
+    {% if not uploaded %}
+    <div class="card">
+      <div class="card-header-custom">
+        <i class="bi bi-camera-fill me-2"></i>Upload Classroom Image / Video
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('attendance.upload_classroom') }}"
+              enctype="multipart/form-data" novalidate>
+
+          <div class="mb-4">
+            <div class="upload-zone" id="cls-zone"
+                 ondragover="event.preventDefault();this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handleDrop(event)"
+                 onclick="document.getElementById('cls-input').click()">
+              <div class="upload-icon"><i class="bi bi-camera-video-fill"></i></div>
+              <div class="fw-500 mb-1" style="font-weight:500" id="cls-label">
+                Drop classroom image or video here
+              </div>
+              <div class="text-muted" style="font-size:.82rem">
+                JPG / PNG image &nbsp;·&nbsp; MP4 / AVI video
+              </div>
+              <input type="file" name="classroom_file" id="cls-input"
+                     accept=".jpg,.jpeg,.png,.mp4,.avi,.mov"
+                     class="d-none" onchange="previewFile(this)"/>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div id="file-preview" class="mb-3 d-none text-center">
+            <img id="img-preview" src="" alt="Preview"
+                 style="max-height:200px;border-radius:10px;border:2px solid var(--border)"
+                 class="d-none"/>
+            <video id="vid-preview" controls
+                   style="max-height:200px;border-radius:10px;border:2px solid var(--border);max-width:100%"
+                   class="d-none"></video>
+          </div>
+
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-upload me-1"></i>Upload File
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- ── File uploaded – confirm & mark ─────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header-custom">
+        <i class="bi bi-check2-circle me-2"></i>File Ready – Confirm Attendance Details
+      </div>
+      <div class="card-body p-4">
+        <!-- Preview -->
+        <div class="text-center mb-4">
+          {% if file_ext in ['jpg','jpeg','png'] %}
+          <img src="{{ url_for('static', filename=file_path.replace('static/','')) }}"
+               alt="Classroom" class="img-fluid rounded-3"
+               style="max-height:250px;border:2px solid var(--border)"/>
+          {% else %}
+          <video controls class="rounded-3" style="max-height:250px;max-width:100%;border:2px solid var(--border)">
+            <source src="{{ url_for('static', filename=file_path.replace('static/','')) }}"/>
+          </video>
+          {% endif %}
+          <p class="text-muted mt-2 mb-0" style="font-size:.82rem">{{ filename }}</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('attendance.mark_attendance') }}"
+              onsubmit="showProcessing()">
+          <input type="hidden" name="filename" value="{{ filename }}"/>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-600" style="font-weight:600">Date</label>
+              <input type="date" name="date" class="form-control"
+                     value="{{ '' | default('') }}"
+                     id="date-field"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-600" style="font-weight:600">Time</label>
+              <input type="time" name="time" class="form-control"
+                     id="time-field"/>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success px-4 fw-600"
+                    id="mark-btn" style="font-weight:600">
+              <i class="bi bi-person-check-fill me-1"></i>Detect Faces & Mark Attendance
+            </button>
+            <a href="{{ url_for('attendance.upload_classroom') }}" class="btn btn-outline-secondary">
+              Upload Different File
+            </a>
+          </div>
+          <div id="proc-msg" class="mt-3 text-muted d-none" style="font-size:.875rem">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Running face detection… this may take a moment.
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Info panel ─────────────────────────────────────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header-custom">
+        <i class="bi bi-diagram-3-fill me-2"></i>Recognition Pipeline
+      </div>
+      <div class="card-body p-4">
+        <div class="d-flex flex-column gap-3">
+          {% for step, icon, desc in [
+            ('Upload', 'cloud-upload-fill', 'Upload classroom image or video frame'),
+            ('Detect', 'crop', 'MTCNN detects and aligns all faces in the image'),
+            ('Embed', 'cpu-fill', 'FaceNet converts each face to a 512-D vector'),
+            ('Classify', 'person-lines-fill', 'SVM predicts student identity for each face'),
+            ('Record', 'database-fill-check', 'Attendance marked and stored in database'),
+          ] %}
+          <div class="d-flex gap-3 align-items-start">
+            <div style="width:36px;height:36px;border-radius:10px;background:#eff6ff;
+                        display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="bi bi-{{ icon }} text-primary"></i>
+            </div>
+            <div>
+              <div class="fw-600" style="font-weight:600;font-size:.9rem">{{ step }}</div>
+              <div class="text-muted" style="font-size:.82rem">{{ desc }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Set default date & time
+window.addEventListener('DOMContentLoaded', () => {
+  const now  = new Date();
+  const pad  = n => String(n).padStart(2,'0');
+  const date = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const df   = document.getElementById('date-field');
+  const tf   = document.getElementById('time-field');
+  if (df) df.value = date;
+  if (tf) tf.value = time;
+});
+
+function previewFile(input) {
+  const label   = document.getElementById('cls-label');
+  const preview = document.getElementById('file-preview');
+  const imgPrev = document.getElementById('img-preview');
+  const vidPrev = document.getElementById('vid-preview');
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    label.textContent = file.name;
+    preview.classList.remove('d-none');
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => { imgPrev.src = e.target.result; };
+      reader.readAsDataURL(file);
+      imgPrev.classList.remove('d-none');
+      vidPrev.classList.add('d-none');
+    } else {
+      vidPrev.src = URL.createObjectURL(file);
+      vidPrev.classList.remove('d-none');
+      imgPrev.classList.add('d-none');
+    }
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('cls-zone').classList.remove('drag-over');
+  const input = document.getElementById('cls-input');
+  input.files = e.dataTransfer.files;
+  previewFile(input);
+}
+
+function showProcessing() {
+  document.getElementById('mark-btn').disabled = true;
+  document.getElementById('proc-msg').classList.remove('d-none');
+}
+</script>
+{% endblock %}
