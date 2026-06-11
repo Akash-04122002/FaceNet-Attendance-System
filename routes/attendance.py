@@ -17,6 +17,7 @@ from flask import (Blueprint, render_template, request,
 from werkzeug.utils import secure_filename
 from database.db import query_db, execute_db
 from routes.auth import login_required
+from utils.email_utils import send_absent_notification
 
 attendance_bp = Blueprint('attendance', __name__)
 
@@ -49,13 +50,62 @@ def dashboard():
            JOIN students s ON a.student_id = s.id
            ORDER BY a.date DESC, a.time DESC LIMIT 10'''
     )
+    
+    # Advanced Analytics
+    # 1. Department-wise attendance percentage
+    dept_stats = query_db('''
+        SELECT s.department, 
+               COUNT(*) as total, 
+               SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) as present
+        FROM attendance a
+        JOIN students s ON a.student_id = s.id
+        GROUP BY s.department
+    ''')
+    
+    dept_labels = []
+    dept_percentages = []
+    if dept_stats:
+        for row in dept_stats:
+            dept_labels.append(row['department'])
+            if row['total'] > 0:
+                dept_percentages.append(round((row['present'] / row['total']) * 100, 1))
+            else:
+                dept_percentages.append(0)
+                
+    # 2. Daily Attendance Trend (Last 7 Days)
+    import json
+    thirty_days_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+    trend_stats = query_db('''
+        SELECT date, 
+               SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as present,
+               SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) as absent
+        FROM attendance
+        WHERE date >= ?
+        GROUP BY date
+        ORDER BY date ASC
+    ''', (thirty_days_ago,))
+    
+    trend_labels = []
+    trend_present = []
+    trend_absent = []
+    if trend_stats:
+        for row in trend_stats:
+            trend_labels.append(row['date'])
+            trend_present.append(row['present'])
+            trend_absent.append(row['absent'])
+
     return render_template(
         'dashboard.html',
         total_students=total_students,
         today_present=today_present,
         total_records=total_records,
         recent=recent,
-        today=today
+        today=today,
+        dept_labels=json.dumps(dept_labels),
+        dept_percentages=json.dumps(dept_percentages),
+        trend_labels=json.dumps(trend_labels),
+        trend_present=json.dumps(trend_present),
+        trend_absent=json.dumps(trend_absent)
     )
 
 
@@ -64,23 +114,37 @@ def dashboard():
 def upload_classroom():
     """Upload a classroom image/video for recognition."""
     if request.method == 'POST':
-        file = request.files.get('classroom_file')
-        if not file or not file.filename:
-            flash('No file selected.', 'danger')
-            return render_template('upload_classroom.html')
-
-        if not _allowed_file(file.filename):
-            flash('Invalid file type. Upload JPG/PNG image or MP4/AVI video.', 'danger')
-            return render_template('upload_classroom.html')
-
-        save_dir = os.path.join(current_app.root_path, UPLOAD_TEMP)
-        os.makedirs(save_dir, exist_ok=True)
-        filename  = secure_filename(file.filename)
-        file_path = os.path.join(save_dir, filename)
-        file.save(file_path)
+        webcam_data = request.form.get('webcam_image')
+        
+        if webcam_data:
+            import base64
+            header, encoded = webcam_data.split(",", 1)
+            data = base64.b64decode(encoded)
+            filename = f"webcam_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            save_dir = os.path.join(current_app.root_path, UPLOAD_TEMP)
+            os.makedirs(save_dir, exist_ok=True)
+            file_path = os.path.join(save_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(data)
+            ext = 'jpg'
+        else:
+            file = request.files.get('classroom_file')
+            if not file or not file.filename:
+                flash('No file selected.', 'danger')
+                return render_template('upload_classroom.html')
+    
+            if not _allowed_file(file.filename):
+                flash('Invalid file type. Upload JPG/PNG image or MP4/AVI video.', 'danger')
+                return render_template('upload_classroom.html')
+    
+            save_dir = os.path.join(current_app.root_path, UPLOAD_TEMP)
+            os.makedirs(save_dir, exist_ok=True)
+            filename  = secure_filename(file.filename)
+            file_path = os.path.join(save_dir, filename)
+            file.save(file_path)
+            ext = filename.rsplit('.', 1)[-1].lower()
 
         # Determine extension type
-        ext = filename.rsplit('.', 1)[-1].lower()
         rel_path = f'{UPLOAD_TEMP}/{filename}'
 
         return render_template(
@@ -133,11 +197,14 @@ def mark_attendance():
         return redirect(url_for('attendance.upload_classroom'))
 
     # ── Mark attendance ───────────────────────────────────────────────────────
-    marked = []
-    for roll_no in recognized:
-        student = query_db('SELECT * FROM students WHERE roll_no = ?', (roll_no,), one=True)
-        if not student:
-            continue
+    marked_present = []
+    marked_absent = []
+    
+    all_students = query_db('SELECT * FROM students')
+    
+    for student in all_students:
+        status = 'Present' if student['roll_no'] in recognized else 'Absent'
+        
         # Avoid duplicate entry for same student on same date
         existing = query_db(
             'SELECT id FROM attendance WHERE student_id = ? AND date = ?',
@@ -146,14 +213,19 @@ def mark_attendance():
         if not existing:
             execute_db(
                 'INSERT INTO attendance (student_id, date, time, status) VALUES (?, ?, ?, ?)',
-                (student['id'], target_date, target_time, 'Present')
+                (student['id'], target_date, target_time, status)
             )
-            marked.append(student['name'])
+            if status == 'Present':
+                marked_present.append(student['name'])
+            else:
+                marked_absent.append(student['name'])
+                send_absent_notification(student, target_date)
 
-    if marked:
-        flash(f'Attendance marked for: {", ".join(marked)}', 'success')
+    if marked_present or marked_absent:
+        msg = f'Attendance marked: {len(marked_present)} Present, {len(marked_absent)} Absent.'
+        flash(msg, 'success')
     else:
-        flash('No new students recognized or all already marked.', 'info')
+        flash('No new students to mark or all already marked.', 'info')
 
     # Auto-generate Excel report
     report_path = _generate_excel_report(target_date)
@@ -222,6 +294,57 @@ def download_report():
                          download_name=os.path.basename(path))
     flash('No attendance data found for the selected date.', 'warning')
     return redirect(url_for('attendance.view_attendance'))
+
+
+@attendance_bp.route('/manual_attendance', methods=['GET', 'POST'])
+@login_required
+def manual_attendance():
+    """Manual attendance with radio buttons."""
+    if request.method == 'POST':
+        target_date = request.form.get('date', datetime.date.today().isoformat())
+        target_time = request.form.get('time', datetime.datetime.now().strftime('%H:%M:%S'))
+        
+        all_students = query_db('SELECT * FROM students')
+        marked_present = 0
+        marked_absent = 0
+        
+        for student in all_students:
+            status = request.form.get(f"status_{student['id']}")
+            if not status:
+                continue
+                
+            existing = query_db(
+                'SELECT id FROM attendance WHERE student_id = ? AND date = ?',
+                (student['id'], target_date), one=True
+            )
+            if not existing:
+                execute_db(
+                    'INSERT INTO attendance (student_id, date, time, status) VALUES (?, ?, ?, ?)',
+                    (student['id'], target_date, target_time, status)
+                )
+            else:
+                execute_db(
+                    'UPDATE attendance SET status = ?, time = ? WHERE id = ?',
+                    (status, target_time, existing['id'])
+                )
+            
+            if status == 'Present':
+                marked_present += 1
+            else:
+                marked_absent += 1
+                send_absent_notification(student, target_date)
+                    
+        flash(f'Attendance saved: {marked_present} Present, {marked_absent} Absent.', 'success')
+        
+        # Auto-generate Excel report
+        report_path = _generate_excel_report(target_date)
+        if report_path:
+            flash(f'Excel report generated: {os.path.basename(report_path)}', 'info')
+            
+        return redirect(url_for('attendance.view_attendance'))
+        
+    students = query_db('SELECT * FROM students ORDER BY name')
+    return render_template('manual_attendance.html', students=students)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

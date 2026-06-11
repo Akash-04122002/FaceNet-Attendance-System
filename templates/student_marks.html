@@ -32,9 +32,18 @@
     <div class="card h-100">
       <div class="card-header-custom d-flex justify-content-between align-items-center">
         <span><i class="bi bi-journal-text me-2"></i>Marks Details</span>
-        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addMarkModal">
-          <i class="bi bi-plus-lg"></i> Add Mark
-        </button>
+        <div>
+          {% if marks %}
+          <form method="POST" action="{{ url_for('students.send_marks_email', student_id=student.id) }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-outline-success me-2" title="Send SMS/Email to Parent">
+              <i class="bi bi-envelope-paper"></i> Send Results
+            </button>
+          </form>
+          {% endif %}
+          <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addMarkModal">
+            <i class="bi bi-plus-lg"></i> Add Mark
+          </button>
+        </div>
       </div>
       <div class="card-body p-0">
         {% if marks %}

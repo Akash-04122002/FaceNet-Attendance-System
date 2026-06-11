@@ -339,7 +339,13 @@
   </a>
   <a href="{{ url_for('attendance.upload_classroom') }}"
      class="nav-link-side {{ 'active' if request.endpoint == 'attendance.upload_classroom' }}">
-    <i class="bi bi-camera-fill"></i> Take Attendance
+    <i class="bi bi-camera-fill"></i> Auto Attendance
+  </a>
+
+  <div class="sidebar-section">Manual Management</div>
+  <a href="{{ url_for('attendance.manual_attendance') }}"
+     class="nav-link-side {{ 'active' if request.endpoint == 'attendance.manual_attendance' }}">
+    <i class="bi bi-card-checklist"></i> Manual Attendance
   </a>
 
   <div class="sidebar-section">Reports</div>

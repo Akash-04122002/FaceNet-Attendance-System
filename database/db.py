@@ -152,7 +152,9 @@ CREATE TABLE IF NOT EXISTS students (
     name       VARCHAR(100) NOT NULL,
     roll_no    VARCHAR(30)  NOT NULL UNIQUE,
     department VARCHAR(100) NOT NULL,
-    image_path VARCHAR(255)
+    image_path VARCHAR(255),
+    parent_email VARCHAR(120),
+    parent_phone VARCHAR(20)
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
@@ -219,6 +221,17 @@ def init_db():
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(SQLITE_SCHEMA)
+    
+    # Add columns for backwards compatibility if they don't exist
+    try:
+        conn.execute("ALTER TABLE students ADD COLUMN parent_email VARCHAR(120);")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE students ADD COLUMN parent_phone VARCHAR(20);")
+    except Exception:
+        pass
+        
     conn.commit()
     conn.close()
     current_app.logger.info("SQLite schema initialised.")

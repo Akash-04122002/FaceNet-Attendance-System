@@ -83,6 +83,30 @@
   </div>
 </div>
 
+<!-- ── Advanced Analytics ─────────────────────────────────────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header-custom">
+        <i class="bi bi-bar-chart-fill me-2"></i>Department Attendance %
+      </div>
+      <div class="card-body">
+        <canvas id="deptChart" height="250"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header-custom">
+        <i class="bi bi-graph-up me-2"></i>Attendance Trend (Last 7 Days)
+      </div>
+      <div class="card-body">
+        <canvas id="trendChart" height="250"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Recent attendance ───────────────────────────────────────────────────── -->
 <div class="card">
   <div class="card-header-custom d-flex justify-content-between align-items-center">
@@ -127,4 +151,80 @@
     {% endif %}
   </div>
 </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Department Bar Chart
+  const deptLabels = {{ dept_labels|safe }};
+  const deptData = {{ dept_percentages|safe }};
+  
+  if (deptLabels.length > 0) {
+      new Chart(document.getElementById('deptChart'), {
+          type: 'bar',
+          data: {
+              labels: deptLabels,
+              datasets: [{
+                  label: 'Attendance %',
+                  data: deptData,
+                  backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                  borderColor: 'rgba(59, 130, 246, 1)',
+                  borderWidth: 1
+              }]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                  y: {
+                      beginAtZero: true,
+                      max: 100
+                  }
+              }
+          }
+      });
+  }
+
+  // Trend Line Chart
+  const trendLabels = {{ trend_labels|safe }};
+  const trendPresent = {{ trend_present|safe }};
+  const trendAbsent = {{ trend_absent|safe }};
+  
+  if (trendLabels.length > 0) {
+      new Chart(document.getElementById('trendChart'), {
+          type: 'line',
+          data: {
+              labels: trendLabels,
+              datasets: [
+                  {
+                      label: 'Present',
+                      data: trendPresent,
+                      borderColor: 'rgba(16, 185, 129, 1)',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      fill: true,
+                      tension: 0.3
+                  },
+                  {
+                      label: 'Absent',
+                      data: trendAbsent,
+                      borderColor: 'rgba(239, 68, 68, 1)',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      fill: true,
+                      tension: 0.3
+                  }
+              ]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                  y: {
+                      beginAtZero: true
+                  }
+              }
+          }
+      });
+  }
+</script>
+
 {% endblock %}

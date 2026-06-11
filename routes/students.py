@@ -13,6 +13,7 @@ from flask import (Blueprint, render_template, request,
 from werkzeug.utils import secure_filename
 from database.db import query_db, execute_db
 from routes.auth import login_required
+from utils.email_utils import send_exam_results
 
 students_bp = Blueprint('students', __name__)
 
@@ -29,10 +30,12 @@ def _allowed_image(filename):
 def add_student():
     """Add a new student to the database."""
     if request.method == 'POST':
-        name       = request.form.get('name', '').strip()
-        roll_no    = request.form.get('roll_no', '').strip().upper()
-        department = request.form.get('department', '').strip()
-        photo      = request.files.get('photo')
+        name         = request.form.get('name', '').strip()
+        roll_no      = request.form.get('roll_no', '').strip().upper()
+        department   = request.form.get('department', '').strip()
+        parent_email = request.form.get('parent_email', '').strip()
+        parent_phone = request.form.get('parent_phone', '').strip()
+        photo        = request.files.get('photo')
 
         if not all([name, roll_no, department]):
             flash('Name, Roll No, and Department are required.', 'danger')
@@ -56,8 +59,8 @@ def add_student():
             image_path = f'uploads/profiles/{filename}'
 
         execute_db(
-            'INSERT INTO students (name, roll_no, department, image_path) VALUES (?, ?, ?, ?)',
-            (name, roll_no, department, image_path)
+            'INSERT INTO students (name, roll_no, department, image_path, parent_email, parent_phone) VALUES (?, ?, ?, ?, ?, ?)',
+            (name, roll_no, department, image_path, parent_email, parent_phone)
         )
         flash(f'Student {name} added successfully!', 'success')
         return redirect(url_for('students.view_students'))
@@ -155,4 +158,27 @@ def add_mark(student_id):
     execute_db('INSERT INTO marks (student_id, subject, marks_obtained, total_marks) VALUES (?, ?, ?, ?)', 
                (student_id, subject, marks_obtained, total_marks))
     flash('Marks added successfully.', 'success')
+    return redirect(url_for('students.student_marks', student_id=student_id))
+
+
+@students_bp.route('/student/<int:student_id>/send_marks_email', methods=['POST'])
+@login_required
+def send_marks_email(student_id):
+    """Send exam results to parent via simulated email/SMS."""
+    student = query_db('SELECT * FROM students WHERE id = ?', (student_id,), one=True)
+    if not student:
+        flash('Student not found.', 'danger')
+        return redirect(url_for('students.view_students'))
+        
+    marks = query_db('SELECT * FROM marks WHERE student_id = ? ORDER BY date_recorded DESC', (student_id,))
+    if not marks:
+        flash('No marks to send.', 'warning')
+        return redirect(url_for('students.student_marks', student_id=student_id))
+        
+    success = send_exam_results(student, marks)
+    if success:
+        flash('Results sent to parent successfully!', 'success')
+    else:
+        flash('Could not send results. Parent email/phone is missing.', 'danger')
+        
     return redirect(url_for('students.student_marks', student_id=student_id))

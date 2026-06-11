@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS students (
     roll_no    VARCHAR(30)  NOT NULL,
     department VARCHAR(100) NOT NULL,
     image_path VARCHAR(255)          COMMENT 'relative path under /static/',
+    parent_email VARCHAR(120),
+    parent_phone VARCHAR(20),
 
     PRIMARY KEY (id),
     UNIQUE KEY uq_roll_no (roll_no)
