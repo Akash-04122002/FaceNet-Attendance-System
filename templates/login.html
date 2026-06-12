@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Login{% endblock %}
+
+{% block auth_content %}
+<div class="auth-wrapper">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <i class="bi bi-camera-video-fill"></i>
+    </div>
+    <h2 class="text-center fw-700 mb-1" style="font-weight:700">Welcome back</h2>
+    <p class="text-center text-muted mb-4" style="font-size:.9rem">
+      FaceNet Smart Attendance System
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }} py-2">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+      <div class="mb-3">
+        <label class="form-label fw-600" style="font-weight:600;font-size:.875rem">
+          Username
+        </label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0">
+            <i class="bi bi-person"></i>
+          </span>
+          <input type="text" name="username" class="form-control border-start-0 ps-0"
+                 placeholder="Enter username" required autocomplete="username"/>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-600" style="font-weight:600;font-size:.875rem">
+          Password
+        </label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0">
+            <i class="bi bi-lock"></i>
+          </span>
+          <input type="password" name="password" id="pw"
+                 class="form-control border-start-0 ps-0 border-end-0"
+                 placeholder="Enter password" required autocomplete="current-password"/>
+          <button class="btn btn-light border border-start-0" type="button"
+                  onclick="togglePw()" tabindex="-1">
+            <i class="bi bi-eye" id="eye-icon"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-600"
+              style="font-weight:600">
+        <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+      </button>
+    </form>
+
+    <hr class="my-4"/>
+    <p class="text-center text-muted" style="font-size:.875rem">
+      No account yet?
+      <a href="{{ url_for('auth.register') }}" class="text-decoration-none fw-600"
+         style="font-weight:600">Register here</a>
+    </p>
+  </div>
+</div>
+
+<script>
+function togglePw() {
+  const pw  = document.getElementById('pw');
+  const eye = document.getElementById('eye-icon');
+  if (pw.type === 'password') {
+    pw.type = 'text';
+    eye.className = 'bi bi-eye-slash';
+  } else {
+    pw.type = 'password';
+    eye.className = 'bi bi-eye';
+  }
+}
+</script>
+{% endblock %}

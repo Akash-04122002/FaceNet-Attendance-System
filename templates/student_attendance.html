@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}Student Attendance{% endblock %}
+{% block page_title %}Attendance for {{ student.name }}{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        {% if student.image_path %}
+          <img src="{{ url_for('static', filename=student.image_path) }}"
+               alt="{{ student.name }}"
+               class="mb-3"
+               style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--border)"/>
+        {% else %}
+          <div class="mx-auto mb-3"
+               style="width:120px;height:120px;border-radius:50%;background:var(--blue);
+                      display:flex;align-items:center;justify-content:center;
+                      color:#fff;font-weight:700;font-size:3rem">
+            {{ student.name[0].upper() }}
+          </div>
+        {% endif %}
+        <h4>{{ student.name }}</h4>
+        <p class="text-muted mb-1"><span class="badge bg-light text-dark border">{{ student.roll_no }}</span></p>
+        <p class="text-muted">{{ student.department }}</p>
+        <a href="{{ url_for('students.view_students') }}" class="btn btn-outline-secondary mt-3">Back to Students</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendance Pie Chart -->
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-header-custom">
+        <i class="bi bi-pie-chart-fill me-2"></i>Attendance Overview
+      </div>
+      <div class="card-body d-flex justify-content-center align-items-center">
+        {% if present_count == 0 and absent_count == 0 %}
+          <p class="text-muted">No attendance records found.</p>
+        {% else %}
+          <div style="width: 300px; height: 300px;">
+            <canvas id="attendanceChart"></canvas>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if present_count > 0 or absent_count > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var ctx = document.getElementById('attendanceChart').getContext('2d');
+    var attendanceChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Present', 'Absent'],
+            datasets: [{
+                data: [{{ present_count }}, {{ absent_count }}],
+                backgroundColor: [
+                    'rgba(40, 167, 69, 0.8)',  // Success green
+                    'rgba(220, 53, 69, 0.8)'   // Danger red
+                ],
+                borderColor: [
+                    'rgba(40, 167, 69, 1)',
+                    'rgba(220, 53, 69, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            var label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed !== null) {
+                                label += context.parsed + ' days';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+  });
+</script>
+{% endif %}
+{% endblock %}

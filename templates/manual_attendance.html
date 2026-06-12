@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Take Attendance{% endblock %}
+{% block page_title %}Take Attendance{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header-custom d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-card-checklist me-2"></i>Manual Attendance</span>
+      </div>
+      <div class="card-body p-4">
+        
+        <form method="POST" action="{{ url_for('attendance.manual_attendance') }}">
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <label class="form-label fw-600">Date</label>
+              <input type="date" name="date" class="form-control" id="date-field" required/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-600">Time</label>
+              <input type="time" name="time" class="form-control" id="time-field" required/>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th style="width: 50px;">Profile</th>
+                  <th>Name</th>
+                  <th>Roll No</th>
+                  <th>Department</th>
+                  <th class="text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in students %}
+                <tr>
+                  <td>
+                    {% if s.image_path %}
+                      <img src="{{ url_for('static', filename=s.image_path) }}" alt="P"
+                           style="width:36px;height:36px;border-radius:8px;object-fit:cover;"/>
+                    {% else %}
+                      <div style="width:36px;height:36px;border-radius:8px;background:var(--blue-lt);
+                                  color:#fff;display:flex;align-items:center;justify-content:center;
+                                  font-weight:600;font-size:.85rem;">
+                        {{ s.name[0].upper() }}
+                      </div>
+                    {% endif %}
+                  </td>
+                  <td class="fw-500">{{ s.name }}</td>
+                  <td><span class="badge bg-light text-dark border mono">{{ s.roll_no }}</span></td>
+                  <td class="text-muted">{{ s.department }}</td>
+                  <td class="text-center">
+                    <div class="btn-group" role="group" aria-label="Attendance Status">
+                      <input type="radio" class="btn-check" name="status_{{ s.id }}" id="present_{{ s.id }}" value="Present" autocomplete="off" required>
+                      <label class="btn btn-outline-success btn-sm" for="present_{{ s.id }}">Present</label>
+
+                      <input type="radio" class="btn-check" name="status_{{ s.id }}" id="absent_{{ s.id }}" value="Absent" autocomplete="off" required>
+                      <label class="btn btn-outline-danger btn-sm" for="absent_{{ s.id }}">Absent</label>
+                    </div>
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">No students found. Add some students first!</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          {% if students %}
+          <div class="mt-4 text-end">
+            <button type="submit" class="btn btn-primary px-4 fw-600">
+              <i class="bi bi-save me-1"></i> Save Attendance
+            </button>
+          </div>
+          {% endif %}
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  const now  = new Date();
+  const pad  = n => String(n).padStart(2,'0');
+  const date = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const df   = document.getElementById('date-field');
+  const tf   = document.getElementById('time-field');
+  if (df && !df.value) df.value = date;
+  if (tf && !tf.value) tf.value = time;
+});
+</script>
+{% endblock %}

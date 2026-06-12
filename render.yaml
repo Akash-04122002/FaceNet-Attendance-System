@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: facenet-attendance
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "app:create_app()"
+    plan: free
