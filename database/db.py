@@ -22,8 +22,8 @@ def get_db_connection():
     if 'db' not in g:
         db_type = current_app.config.get('DB_TYPE', 'sqlite')
 
-        if db_type == 'mysql':
-            g.db = _get_mysql_connection()
+        if db_type == 'postgres':
+            g.db = _get_postgres_connection()
         else:
             g.db = _get_sqlite_connection()
 
@@ -40,20 +40,21 @@ def _get_sqlite_connection():
     return conn
 
 
-def _get_mysql_connection():
-    """Open a MySQL connection using mysql-connector-python."""
+def _get_postgres_connection():
+    """Open a PostgreSQL connection using psycopg2."""
     try:
-        import mysql.connector
-        conn = mysql.connector.connect(
-            host=current_app.config['MYSQL_HOST'],
-            port=current_app.config['MYSQL_PORT'],
-            user=current_app.config['MYSQL_USER'],
-            password=current_app.config['MYSQL_PASSWORD'],
-            database=current_app.config['MYSQL_DB'],
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(
+            host='localhost',
+            port=5432,
+            user='postgres',
+            password='Yoki143@',
+            dbname='attendance_system',
         )
         return conn
     except Exception as exc:
-        current_app.logger.error(f"MySQL connection failed: {exc}. Falling back to SQLite.")
+        current_app.logger.error(f"PostgreSQL connection failed: {exc}. Falling back to SQLite.")
         return _get_sqlite_connection()
 
 
@@ -134,21 +135,18 @@ CREATE TABLE IF NOT EXISTS marks (
 );
 """
 
-MYSQL_SCHEMA = """
-CREATE DATABASE IF NOT EXISTS attendance_system;
-USE attendance_system;
-
+POSTGRES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    id         SERIAL PRIMARY KEY,
     username   VARCHAR(80)  NOT NULL UNIQUE,
     email      VARCHAR(120) NOT NULL UNIQUE,
     password   VARCHAR(255) NOT NULL,
     role       VARCHAR(20)  NOT NULL DEFAULT 'teacher',
-    created_at DATETIME     DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS students (
-    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    id         SERIAL PRIMARY KEY,
     name       VARCHAR(100) NOT NULL,
     roll_no    VARCHAR(30)  NOT NULL UNIQUE,
     department VARCHAR(100) NOT NULL,
@@ -158,29 +156,30 @@ CREATE TABLE IF NOT EXISTS students (
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
-    id         INT     AUTO_INCREMENT PRIMARY KEY,
+    id         SERIAL PRIMARY KEY,
     student_id INT     NOT NULL,
     date       DATE    NOT NULL,
     time       TIME    NOT NULL,
     status     VARCHAR(10) NOT NULL DEFAULT 'Present',
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    UNIQUE (student_id, date)
 );
 
 CREATE TABLE IF NOT EXISTS dataset_logs (
-    id          INT      AUTO_INCREMENT PRIMARY KEY,
+    id          SERIAL PRIMARY KEY,
     student_id  INT      NOT NULL,
     image_count INT      NOT NULL DEFAULT 0,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS marks (
-    id             INT      AUTO_INCREMENT PRIMARY KEY,
+    id             SERIAL PRIMARY KEY,
     student_id     INT      NOT NULL,
     subject        VARCHAR(100) NOT NULL,
     marks_obtained FLOAT    NOT NULL,
     total_marks    FLOAT    NOT NULL,
-    date_recorded  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    date_recorded  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );
 """
@@ -194,27 +193,28 @@ def init_db():
     from flask import current_app
     db_type = current_app.config.get('DB_TYPE', 'sqlite')
 
-    if db_type == 'mysql':
+    if db_type == 'postgres':
         try:
-            import mysql.connector
-            conn = mysql.connector.connect(
-                host=current_app.config['MYSQL_HOST'],
-                port=current_app.config['MYSQL_PORT'],
-                user=current_app.config['MYSQL_USER'],
-                password=current_app.config['MYSQL_PASSWORD'],
+            import psycopg2
+            conn = psycopg2.connect(
+                host='localhost',
+                port=5432,
+                user='postgres',
+                password='Yoki143@',
+                dbname='attendance_system'
             )
             cursor = conn.cursor()
-            for statement in MYSQL_SCHEMA.strip().split(';'):
+            for statement in POSTGRES_SCHEMA.strip().split(';'):
                 stmt = statement.strip()
                 if stmt:
                     cursor.execute(stmt)
             conn.commit()
             cursor.close()
             conn.close()
-            current_app.logger.info("MySQL schema initialised.")
+            current_app.logger.info("PostgreSQL schema initialised.")
             return
         except Exception as exc:
-            current_app.logger.warning(f"MySQL init failed ({exc}), using SQLite.")
+            current_app.logger.warning(f"PostgreSQL init failed ({exc}), using SQLite.")
 
     # SQLite fallback
     db_path = current_app.config['SQLITE_PATH']
@@ -243,11 +243,11 @@ def query_db(query, args=(), one=False):
     Use execute_db() for INSERT / UPDATE / DELETE.
     """
     conn = get_db_connection()
-    db_type = current_app.config.get('DB_TYPE', 'sqlite')
+    import sqlite3
 
-    if db_type == 'mysql':
-        import mysql.connector
-        cursor = conn.cursor(dictionary=True)
+    if not isinstance(conn, sqlite3.Connection):
+        import psycopg2.extras
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cursor.execute(query.replace('?', '%s'), args)
         rv = cursor.fetchall()
         cursor.close()
@@ -265,13 +265,18 @@ def execute_db(query, args=()):
     Returns lastrowid.
     """
     conn = get_db_connection()
-    db_type = current_app.config.get('DB_TYPE', 'sqlite')
+    import sqlite3
 
-    if db_type == 'mysql':
+    if not isinstance(conn, sqlite3.Connection):
         cursor = conn.cursor()
-        cursor.execute(query.replace('?', '%s'), args)
-        conn.commit()
-        last_id = cursor.lastrowid
+        if query.strip().upper().startswith("INSERT") and "RETURNING" not in query.upper():
+            cursor.execute(query.replace('?', '%s') + " RETURNING id", args)
+            conn.commit()
+            last_id = cursor.fetchone()[0] if cursor.rowcount > 0 else None
+        else:
+            cursor.execute(query.replace('?', '%s'), args)
+            conn.commit()
+            last_id = cursor.rowcount
         cursor.close()
     else:
         cursor = conn.execute(query, args)
