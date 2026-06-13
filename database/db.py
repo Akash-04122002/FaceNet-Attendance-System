@@ -78,8 +78,11 @@ CREATE TABLE IF NOT EXISTS users (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     username   TEXT    NOT NULL UNIQUE,
     email      TEXT    NOT NULL UNIQUE,
+    phone      TEXT    NOT NULL UNIQUE,
     password   TEXT    NOT NULL,          -- bcrypt / werkzeug hash
     role       TEXT    NOT NULL DEFAULT 'teacher',
+    reset_otp  TEXT,
+    otp_expiry DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -140,8 +143,11 @@ CREATE TABLE IF NOT EXISTS users (
     id         SERIAL PRIMARY KEY,
     username   VARCHAR(80)  NOT NULL UNIQUE,
     email      VARCHAR(120) NOT NULL UNIQUE,
+    phone      VARCHAR(20)  NOT NULL UNIQUE,
     password   VARCHAR(255) NOT NULL,
     role       VARCHAR(20)  NOT NULL DEFAULT 'teacher',
+    reset_otp  VARCHAR(6),
+    otp_expiry TIMESTAMP,
     created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -208,6 +214,21 @@ def init_db():
                 stmt = statement.strip()
                 if stmt:
                     cursor.execute(stmt)
+            
+            # Migrations for existing tables
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN phone VARCHAR(20);")
+            except Exception:
+                conn.rollback()
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN reset_otp VARCHAR(6);")
+            except Exception:
+                conn.rollback()
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN otp_expiry TIMESTAMP;")
+            except Exception:
+                conn.rollback()
+            
             conn.commit()
             cursor.close()
             conn.close()
@@ -229,6 +250,19 @@ def init_db():
         pass
     try:
         conn.execute("ALTER TABLE students ADD COLUMN parent_phone VARCHAR(20);")
+    except Exception:
+        pass
+    
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN phone TEXT;")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN reset_otp TEXT;")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN otp_expiry DATETIME;")
     except Exception:
         pass
         
